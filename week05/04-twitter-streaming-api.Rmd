@@ -10,11 +10,13 @@ In this file we will discuss the Twitter Streaming API with the help of the `rtw
 Loading packages:
 
 ```{r}
+#install.packages("rtweet")
 library("rtweet")
 library("tidyverse")
 library("maps")
 library("stringr")
 library("maps")
+library("readr")
 
 # Function which allows to recover corrupted tweet jsons returned by rtweet
 # Discussion: https://github.com/ropensci/rtweet/issues/356
@@ -48,7 +50,7 @@ Lastly, enter your app name into the cell below. If the cell then outputs `LSEne
 
 ```{r}
 # Replace the app name with your own!
-twitter_token <- create_token(app = "enter your app name here", 
+twitter_token <- create_token(app = "mabr", 
                               consumer_key = authentication$consumer_key,
                               consumer_secret = authentication$consumer_secret,
                               access_token = authentication$access_token,
@@ -56,7 +58,6 @@ twitter_token <- create_token(app = "enter your app name here",
 
 lookup_users("LSEnews")$screen_name
 ```
-
 
 #### Preliminaries
 
@@ -77,14 +78,19 @@ Note in particular that while the function is running, all output is written int
 First, we collect a random sample of tweets for 30 seconds and store it as a JSON file. Frequently the output from the streaming API is malformed JSON, so we need to do a bit of gymnastics with the tryCatch expression and function from JBGruber above:
 
 ```{r}
+
 stream_tweets(q = "", timeout = 30, file_name='streamed_tweets.json')
+
+#stream_tweets(q = "", timeout = 30, parse = FALSE, file_name='streamed_tweets.json')
+
 sample_tweets <- tryCatch({parse_stream('streamed_tweets.json')},
                        error = function(e)
                            {print(paste("Retrying with alternative function after initial error when parsing file",
                                         'streamed_tweets.json'));
                            return(recover_stream('streamed_tweets.json'))})
-head(____________)
-head(____________$text)
+df <- tibble(d)
+print(df[1,])
+head(sample_tweets$text)
 ```
 
 The returned tweets have been parsed into R directly as a data frame / tibble:
@@ -121,7 +127,12 @@ write_as_csv(sample_tweets, file_name = "df_collected_tweets.csv")
 If we specify a keyword, we can collect tweets containing it. Note that here we don't bother with the tryCatch expression. The short timeout means we can (probably) get away with it...:
 
 ```{r}
-keyword_tweets <- stream_tweets(q = "election", timeout = 5)
+stream_tweets(q = "election", timeout = 5, file_name = 'keywords2.json')
+keyword_tweets <- tryCatch({parse_stream('test_jsons/keywords.json')},
+                       error = function(e)
+                           {print(paste("Retrying with alternative function after initial error when parsing file",
+                                        'test_jsons/keywords.json'));
+                           return(recover_stream('test_jsons/keywords.json'))})
 head(keyword_tweets)
 head(keyword_tweets$text)
 ```

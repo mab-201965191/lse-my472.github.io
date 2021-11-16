@@ -1,0 +1,123 @@
+---
+title: "Test parse Maria"
+output: html_document
+---
+
+Redefining functions. 
+
+```{r}
+library(readr)
+
+good_lines <- function(x) {
+  grep("^\\{\"created.*ms\":\"\\d+\"\\}$", x, value = TRUE)
+}
+good_lines2 <- function(x) {
+  x <- x[nchar(x) > 0]
+  x <- grep("{\"delete", x, fixed = TRUE, invert = TRUE, value = TRUE)
+  x <- grep("{\"limit", x, fixed = TRUE, invert = TRUE, value = TRUE)
+  co <- grep("\\d+\"\\}$", x, invert = TRUE)
+  if (length(co) > 0) {
+    for (i in seq_along(co)) {
+      if (co[i] + 1 > length(x)) break
+      x[co[i]] <- paste0(x[co[i]], x[co[i] + 1])
+    }
+    x <- x[-c(co + 1)]
+    while (!grepl("\\d+\"\\}$", x[length(x)])) {
+      x <- x[-length(x)]
+      if (length(x) == 0) break
+    }
+  }
+  x
+}
+
+parse_stream2 <- function(file_name, ...) {
+  if (!identical(getOption("encoding"), "UTF-8")) {
+    op <- getOption("encoding")
+    options(encoding = "UTF-8")
+    on.exit(options(encoding = op), add = TRUE)
+  }
+  print('stage1')
+  s <- tryCatch(jsonlite::stream_in(file(file_name), ...), error = function(e)
+    return(NULL))
+  print(s)
+  if (is.null(s)) {
+    print('stage2')
+    d <- readr::read_lines(file_name)
+    print(length(d))
+    if (length(d) > 0) {
+      tmp <- tempfile()
+      on.exit(file.remove(tmp), add = TRUE)
+      d <- good_lines2(d)
+    }
+    print('stage3')
+    print(length(d))
+    if (length(d) > 0) {
+      dd <- sapply(d, function(x) {
+        o <- tryCatch(jsonlite::fromJSON(x),
+          error = function(e) return(FALSE))
+        if (identical(o, FALSE)) return(FALSE)
+        return(TRUE)
+      }, USE.NAMES = FALSE)
+      writeLines(d[dd], tmp)
+      print('stage4')
+      s <- jsonlite::stream_in(file(tmp, "rb"))
+    }
+  }
+  print('stage5')
+  if (length(s) == 0L) s <- NULL
+  print(s)
+  print('stage6')
+  tweets_with_users(s)
+}
+
+```
+
+What happens when you run this function? I usually get to `stage4` before it throws an error
+```{r}
+
+parse_stream2('nov11.json')
+
+
+```
+
+```{r}
+
+print(default_locale())
+
+d <- read_lines(
+  'nov11.json',
+  skip = 0,
+  skip_empty_rows = FALSE,
+  n_max = Inf,
+  locale = default_locale(),
+  na = character(),
+  lazy = TRUE,
+  num_threads = readr_threads()
+)
+print(length(d))
+print(d[1:5])
+```
+
+```{r}
+head(d)
+
+sample_tweets <- as.data.frame(d)
+```
+There's some discrepancy between our read_lines function, perhaps due to some encoding defaults? My output of the above cell is:
+
+<locale>
+Numbers:  123,456.78
+Formats:  %AD / %AT
+Timezone: UTC
+Encoding: UTF-8
+<date_names>
+Days:   Sunday (Sun), Monday (Mon), Tuesday (Tue), Wednesday (Wed), Thursday (Thu), Friday (Fri), Saturday (Sat)
+Months: January (Jan), February (Feb), March (Mar), April (Apr), May (May), June (Jun), July (Jul), August (Aug), September (Sep), October (Oct),
+        November (Nov), December (Dec)
+AM/PM:  AM/PM
+[1] 3473
+[1] "{\"delete\":{\"status\":{\"id\":1453782957320138756,\"id_str\":\"1453782957320138756\",\"user_id\":1237756326836498433,\"user_id_str\":\"1237756326836498433\"},\"timestamp_ms\":\"1635845265520\"}}"
+[2] ""                                                                                                                                                                                                    
+[3] "\n{\"delete\":{\"status\":{\"id\":1455466634840268816,\"id_str\":\"1455466634840268816\",\"user_id\":895242923666796544,\"user_id_str\":\"895242923666796544\"},\"timestamp_ms\":\"1635845265611\"}}"
+[4] ""                                                                                                                                                                                                    
+[5] "\n"  
